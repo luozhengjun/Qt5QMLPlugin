@@ -12,7 +12,7 @@ Q_GHS_KEEP_REFERENCE(qml_register_types_@__qml_plugin_uri_name_for_class@)
 class @__qml_plugin_uri_name_for_class@Plugin : public QQmlEngineExtensionPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID QQmlEngineExtensionInterface_iid)
+    Q_PLUGIN_METADATA(IID "@__qml_plugin_uri_name@")
 
 public:
     @__qml_plugin_uri_name_for_class@Plugin(QObject *parent = nullptr) : QQmlEngineExtensionPlugin(parent)

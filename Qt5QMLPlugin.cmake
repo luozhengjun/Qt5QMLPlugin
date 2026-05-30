@@ -10,7 +10,7 @@ set(__qml_plugin_no_generate_typeinfo OFF)
 set(__qml_plugin_no_public_sources OFF)
 
 # Find Qt5 Core component - required for all operations
-find_package(Qt5 REQUIRED COMPONENTS Core)
+find_package(Qt5 REQUIRED COMPONENTS Core Qml Quick)
 
 # Ensure AutoMocHelper is built once
 if(NOT TARGET AutoMocHelper)
@@ -412,7 +412,7 @@ endfunction()
 ### Function: qt5_add_qml_module
 # Purpose: Core function for defining QML modules, handling resources, typeinfo, and dependencies
 function(qt5_add_qml_module TARGET)
-    set(options NO_GENERATE_TYPEINFO NO_PUBLIC_SOURCES)
+    set(options NO_GENERATE_TYPEINFO NO_PUBLIC_SOURCES SHARED STATIC)
     set(oneValueArgs URI VERSION PLUGIN_TARGET OUTPUT_DIRECTORY RESOURCE_PREFIX TYPEINFO)
     set(multiValueArgs SOURCES QML_FILES RESOURCES DEPEND_MODULE DEPEND_MODULE_VERSION)
     
@@ -435,7 +435,42 @@ function(qt5_add_qml_module TARGET)
     
     # Convert URI to uppercase for class naming
     string(TOUPPER ${__qml_plugin_uri_name_for_class} __qml_plugin_uri_name_for_class_upper)
-    
+
+    set(is_executable FALSE)
+    if(TARGET ${TARGET})
+        if(QMLPLUGIN_STATIC OR QMLPLUGIN_SHARED)
+            message(FATAL_ERROR
+                "Cannot use STATIC or SHARED keyword when passed an existing target (${TARGET})"
+                )
+        endif()
+    else()
+        if(QMLPLUGIN_STATIC AND QMLPLUGIN_SHARED)
+            message(FATAL_ERROR
+                "Both STATIC and SHARED specified, at most one can be given"
+                )
+        endif()
+
+        if(QMLPLUGIN_STATIC)
+            set(lib_type STATIC)
+        elseif(QMLPLUGIN_SHARED)
+            set(lib_type SHARED)
+        else()
+            set(lib_type STATIC)
+        endif()
+
+        qt5_add_library(${TARGET} ${lib_type})
+        set_target_properties(${TARGET} PROPERTIES
+            AUTOMOC ON
+            AUTORCC ON
+            AUTOUIC ON
+        )
+    endif()
+
+    target_link_libraries(${TARGET}
+        PRIVATE Qt5::Core
+        PRIVATE Qt5::Qml
+    )
+
     # Determine target type
     get_target_property(__target_type ${TARGET} TYPE)
     
@@ -572,11 +607,19 @@ function(qt5_add_qml_module TARGET)
     if(${__qml_plugin_build_dir} MATCHES "NOTFOUND")
         set(__qml_plugin_build_dir "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_autogen")
     endif()
-    
+
     # Generate automoc JSON list file
+    set(__automoc_json_list_depends AutoMocHelper)
+    if(MSVC)
+        file(MAKE_DIRECTORY ${__qml_plugin_build_dir})
+        list(APPEND __automoc_json_list_depends
+            ${__qml_plugin_build_dir}/mocs_compilation_$<CONFIG>.cpp)
+    else()
+        list(APPEND ${TARGET}_autogen)
+    endif()
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/automoc_json_list.txt
-        COMMAND ${CMAKE_BINARY_DIR}/AutoMocHelper ${__qml_plugin_build_dir} > ${CMAKE_CURRENT_BINARY_DIR}/automoc_json_list.txt
-        DEPENDS AutoMocHelper ${__qml_plugin_build_dir}/timestamp
+        COMMAND  $<TARGET_FILE:AutoMocHelper> ${__qml_plugin_build_dir} > ${CMAKE_CURRENT_BINARY_DIR}/automoc_json_list.txt
+        DEPENDS ${__automoc_json_list_depends}
         COMMENT "Generating ${TARGET}'s automoc_json_list.txt"
         COMMAND_EXPAND_LISTS
         VERBATIM)
