@@ -1,13 +1,7 @@
 #include <QtQml/qqml.h>
 #include <QtQml/qqmlextensionplugin.h>
-#if defined(Q_CC_GHS)
-#  define Q_GHS_KEEP_REFERENCE(S) QT_DO_PRAGMA(ghs reference S ##__Fv)
-#else
-#  define Q_GHS_KEEP_REFERENCE(S)
-#endif
 
 extern void qml_register_types_@__qml_plugin_uri_name_for_class@();
-Q_GHS_KEEP_REFERENCE(qml_register_types_@__qml_plugin_uri_name_for_class@)
 @__qml_plugin_static_register_content@
 class @__qml_plugin_uri_name_for_class@Plugin : public QQmlEngineExtensionPlugin
 {

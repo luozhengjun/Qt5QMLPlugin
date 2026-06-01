@@ -7,7 +7,7 @@ set(__qml_plugin_current_dir ${CMAKE_CURRENT_LIST_DIR} CACHE STRING "Set for Qt5
 set(__qml_plugin_no_generate_typeinfo OFF)
 
 # Control flag to disable exposing sources as public (if needed)
-set(__qml_plugin_no_public_sources OFF)
+set(__qml_plugin_no_public_sources ON)
 
 # Find Qt5 Core component - required for all operations
 find_package(Qt5 REQUIRED COMPONENTS Core Qml Quick)
@@ -455,7 +455,7 @@ function(qt5_add_qml_module TARGET)
         elseif(QMLPLUGIN_SHARED)
             set(lib_type SHARED)
         else()
-            set(lib_type STATIC)
+            set(lib_type SHARED)
         endif()
 
         qt5_add_library(${TARGET} ${lib_type})
@@ -464,6 +464,7 @@ function(qt5_add_qml_module TARGET)
             AUTORCC ON
             AUTOUIC ON
         )
+        set_target_properties(${TARGET} PROPERTIES LINKER_LANGUAGE CXX)
     endif()
 
     target_link_libraries(${TARGET}
@@ -501,14 +502,24 @@ function(qt5_add_qml_module TARGET)
 
     # Update __qml_plugin_qml_import_path (GLOBAL property)
     get_property(__qml_plugin_qml_import_path GLOBAL PROPERTY __qml_plugin_qml_import_path)
-
-    if(NOT __qml_plugin_qml_import_path MATCHES "(^|:)${__qml_plugin_output_dir_parent}(:|$)")
-        if(__qml_plugin_qml_import_path)
-            set(__qml_plugin_qml_import_path "${__qml_plugin_qml_import_path}:${__qml_plugin_output_dir_parent}")
-        else()
-            set(__qml_plugin_qml_import_path "${__qml_plugin_output_dir_parent}")
+    if(WIN32)
+        if(NOT __qml_plugin_qml_import_path MATCHES "(^|;)${__qml_plugin_output_dir_parent}(;|$)")
+            if(__qml_plugin_qml_import_path)
+                set(__qml_plugin_qml_import_path "${__qml_plugin_qml_import_path};${__qml_plugin_output_dir_parent}")
+            else()
+                set(__qml_plugin_qml_import_path "${__qml_plugin_output_dir_parent}")
+            endif()
+            set_property(GLOBAL PROPERTY __qml_plugin_qml_import_path "${__qml_plugin_qml_import_path}")
         endif()
-        set_property(GLOBAL PROPERTY __qml_plugin_qml_import_path "${__qml_plugin_qml_import_path}")
+    else()
+        if(NOT __qml_plugin_qml_import_path MATCHES "(^|:)${__qml_plugin_output_dir_parent}(:|$)")
+            if(__qml_plugin_qml_import_path)
+                set(__qml_plugin_qml_import_path "${__qml_plugin_qml_import_path}:${__qml_plugin_output_dir_parent}")
+            else()
+                set(__qml_plugin_qml_import_path "${__qml_plugin_output_dir_parent}")
+            endif()
+            set_property(GLOBAL PROPERTY __qml_plugin_qml_import_path "${__qml_plugin_qml_import_path}")
+        endif()
     endif()
 
     # Update QML_IMPORT_PATH (cached variable)
@@ -547,7 +558,16 @@ function(qt5_add_qml_module TARGET)
         target_link_libraries(${QMLPLUGIN_PLUGIN_TARGET} PRIVATE
                 Qt${QT_VERSION_MAJOR}::Quick
         )
+
+        set_target_properties(${QMLPLUGIN_PLUGIN_TARGET} PROPERTIES AUTOMOC ON)
+
+        target_include_directories(${QMLPLUGIN_PLUGIN_TARGET}
+            PRIVATE $<TARGET_PROPERTY:${TARGET},INTERFACE_INCLUDE_DIRECTORIES>
+            PRIVATE $<TARGET_PROPERTY:${TARGET},INCLUDE_DIRECTORIES>
+        )
+
         add_dependencies(${TARGET} ${QMLPLUGIN_PLUGIN_TARGET})
+
         set(DEFAULT_TARGET ${TARGET})
         set(TARGET ${QMLPLUGIN_PLUGIN_TARGET})
     endif()
@@ -612,6 +632,9 @@ function(qt5_add_qml_module TARGET)
     set(__automoc_json_list_depends AutoMocHelper)
     if(MSVC)
         file(MAKE_DIRECTORY ${__qml_plugin_build_dir})
+        file(TOUCH
+            ${__qml_plugin_build_dir}/mocs_compilation_DEBUG.cpp
+            ${__qml_plugin_build_dir}/mocs_compilation_RELEASE.cpp)
         list(APPEND __automoc_json_list_depends
             ${__qml_plugin_build_dir}/mocs_compilation_$<CONFIG>.cpp)
     else()
@@ -778,7 +801,7 @@ function(qt5_add_qml_module TARGET)
         # Generate target-specific QML types file
         add_custom_target(${TARGET}qmltypes ALL
             DEPENDS ${__qmltypes_depend}
-            COMMAND ${CMAKE_COMMAND} -E env QML2_IMPORT_PATH="${__qml_plugin_qml_import_path}" ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${__qml_plugin_output_dir_parent} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
+            COMMAND ${CMAKE_COMMAND} -E env "QML2_IMPORT_PATH=${__qml_plugin_qml_import_path}" -- ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${__qml_plugin_output_dir_parent} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
             COMMENT "Generating ${QMLPLUGIN_TYPEINFO}")
     endif()
     
