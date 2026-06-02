@@ -664,11 +664,13 @@ function(qt5_add_qml_module TARGET)
     set(__qml_plugin_automoc_type_register_cpp ${CMAKE_CURRENT_BINARY_DIR}/${QMLPLUGIN_PLUGIN_TARGET}_qmltyperegistrations.cpp)
     if(__target_type MATCHES "EXECUTABLE")
         add_custom_command(OUTPUT ${__qml_plugin_automoc_type_register_cpp}
-            COMMAND ${QMLTYPEREGISTRAR_BIN} --import-name ${__qml_plugin_uri_name} --major-version ${QMLPLUGIN_VERSION_MAJOR} --minor-version ${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json --generate-qmltypes ${CMAKE_CURRENT_BINARY_DIR}/${QMLPLUGIN_TYPEINFO} > ${__qml_plugin_automoc_type_register_cpp}
+            COMMAND ${QMLTYPEREGISTRAR_BIN} --import-name ${__qml_plugin_uri_name} --major-version ${QMLPLUGIN_VERSION_MAJOR} --minor-version ${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json --generate-qmltypes ${CMAKE_CURRENT_BINARY_DIR}/${QMLPLUGIN_TYPEINFO} > ${__qml_plugin_automoc_type_register_cpp}_origin
+            COMMAND ${CMAKE_COMMAND} "-DINPUT=${__qml_plugin_automoc_type_register_cpp}_origin" "-DOUTPUT=${__qml_plugin_automoc_type_register_cpp}" -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patch_registrar.cmake
             DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json)
     else()
         add_custom_command(OUTPUT ${__qml_plugin_automoc_type_register_cpp}
-            COMMAND ${QMLTYPEREGISTRAR_BIN} --import-name ${__qml_plugin_uri_name} --major-version ${QMLPLUGIN_VERSION_MAJOR} --minor-version ${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json > ${__qml_plugin_automoc_type_register_cpp}
+            COMMAND ${QMLTYPEREGISTRAR_BIN} --import-name ${__qml_plugin_uri_name} --major-version ${QMLPLUGIN_VERSION_MAJOR} --minor-version ${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json > ${__qml_plugin_automoc_type_register_cpp}_origin
+            COMMAND ${CMAKE_COMMAND} "-DINPUT=${__qml_plugin_automoc_type_register_cpp}_origin" "-DOUTPUT=${__qml_plugin_automoc_type_register_cpp}" -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patch_registrar.cmake
             DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/collected_types.json)
     endif()
     
