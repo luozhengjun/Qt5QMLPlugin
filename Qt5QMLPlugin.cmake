@@ -409,12 +409,44 @@ function(qt_add_qml_module)
     qt5_add_qml_module(${ARGV})
 endfunction()
 
+function(parse_qml_module_dependencies depends out_depend_module out_depend_module_version)
+    set(depend_module )
+    set(depend_module_version )
+
+    foreach(dependency IN LISTS ${depends})
+        set(dep_version "")
+        set(dep_uri "")
+        string(FIND "${dependency}" "/" slash_position REVERSE)
+        if(slash_position EQUAL -1)
+            set(dep_uri "${dependency}")
+            set(dep_version "0.0")
+        else()
+            string(SUBSTRING "${dependency}" 0 ${slash_position} dep_module)
+            math(EXPR slash_position "${slash_position} + 1")
+            string(SUBSTRING "${dependency}" ${slash_position} -1 dep_version)
+            if(NOT dep_version MATCHES "^([0-9]+(\\.[0-9]+)?)$")
+                message(FATAL_ERROR
+                    "Invalid module dependency version number. "
+                    "Expected 'VersionMajor', 'VersionMajor.VersionMinor'."
+                )
+            endif()
+            set(dep_uri "${dep_module}")
+        endif()
+
+        list(APPEND depend_module "${dep_uri}")
+        list(APPEND depend_module_version "${dep_version}")
+    endforeach()
+
+    set(${out_depend_module} "${depend_module}" PARENT_SCOPE)
+    set(${out_depend_module_version} "${depend_module_version}" PARENT_SCOPE)
+endfunction()
+
 ### Function: qt5_add_qml_module
 # Purpose: Core function for defining QML modules, handling resources, typeinfo, and dependencies
 function(qt5_add_qml_module TARGET)
     set(options NO_GENERATE_TYPEINFO NO_PUBLIC_SOURCES SHARED STATIC)
     set(oneValueArgs URI VERSION PLUGIN_TARGET OUTPUT_DIRECTORY RESOURCE_PREFIX TYPEINFO)
-    set(multiValueArgs SOURCES QML_FILES RESOURCES DEPEND_MODULE DEPEND_MODULE_VERSION)
+    set(multiValueArgs SOURCES QML_FILES RESOURCES DEPENDENCIES)
     
     # Parse input arguments
     cmake_parse_arguments(QMLPLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -436,12 +468,17 @@ function(qt5_add_qml_module TARGET)
     # Convert URI to uppercase for class naming
     string(TOUPPER ${__qml_plugin_uri_name_for_class} __qml_plugin_uri_name_for_class_upper)
 
+    set(QMLPLUGIN_DEPEND_MODULE )
+    set(QMLPLUGIN_DEPEND_MODULE_VERSION )
+    if(QMLPLUGIN_DEPENDENCIES)
+        parse_qml_module_dependencies(QMLPLUGIN_DEPENDENCIES QMLPLUGIN_DEPEND_MODULE QMLPLUGIN_DEPEND_MODULE_VERSION)
+    endif()
+
     set(is_executable FALSE)
     if(TARGET ${TARGET})
         if(QMLPLUGIN_STATIC OR QMLPLUGIN_SHARED)
             message(FATAL_ERROR
-                "Cannot use STATIC or SHARED keyword when passed an existing target (${TARGET})"
-                )
+                "Cannot use STATIC or SHARED keyword when passed an existing target (${TARGET})")
         endif()
     else()
         if(QMLPLUGIN_STATIC AND QMLPLUGIN_SHARED)
@@ -782,16 +819,16 @@ function(qt5_add_qml_module TARGET)
     
     # Generate QML type info file if needed for shared libraries
     if (__target_type MATCHES "SHARED_LIBRARY" AND NOT QMLPLUGIN_NO_GENERATE_TYPEINFO)
-        set(__qmltypes_depend ${TARGET} ${QMLPLUGIN_PLUGIN_TARGET})
-        if(QMLPLUGIN_DEPEND_MODULE AND NOT QMLPLUGIN_NO_GENERATE_TYPEINFO)
-            list(GET QMLPLUGIN_DEPEND_MODULE 0 __qmltypes_depend)
-            set(__qmltypes_depend ${TARGET}-${__qmltypes_depend}qmltypes)
-        endif()
+        set(__qmltypes_depend ${QMLPLUGIN_PLUGIN_TARGET})
+        #if(QMLPLUGIN_DEPEND_MODULE AND NOT QMLPLUGIN_NO_GENERATE_TYPEINFO)
+        #    list(GET QMLPLUGIN_DEPEND_MODULE 0 __qmltypes_depend)
+        #    set(__qmltypes_depend ${QMLPLUGIN_PLUGIN_TARGET}-${__qmltypes_depend}qmltypes)
+        #endif()
 
         # Generate target-specific QML types file
         add_custom_target(${TARGET}qmltypes ALL
             DEPENDS ${__qmltypes_depend}
-            COMMAND $<$<CONFIG:RELEASE>:${CMAKE_COMMAND}> -E env "QML2_IMPORT_PATH=${__qml_plugin_qml_import_path}" -- ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
+            COMMAND $<$<CONFIG:RELEASE>:${CMAKE_COMMAND}> -E env "QML2_IMPORT_PATH=${__qml_plugin_qml_import_path}" --modify "PATH=path_list_prepend:${QMLPLUGIN_OUTPUT_DIRECTORY}" -- ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
             COMMAND $<$<NOT:$<CONFIG:RELEASE>>:${CMAKE_COMMAND}> -E echo "Debug build type will not generate ${QMLPLUGIN_TYPEINFO}"
             COMMENT "Generating ${QMLPLUGIN_TYPEINFO}"
             VERBATIM
