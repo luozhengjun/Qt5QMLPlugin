@@ -419,15 +419,15 @@ function(parse_qml_module_dependencies depends out_depend_module out_depend_modu
         string(FIND "${dependency}" "/" slash_position REVERSE)
         if(slash_position EQUAL -1)
             set(dep_uri "${dependency}")
-            set(dep_version "0.0")
+            set(dep_version "auto")
         else()
             string(SUBSTRING "${dependency}" 0 ${slash_position} dep_module)
             math(EXPR slash_position "${slash_position} + 1")
             string(SUBSTRING "${dependency}" ${slash_position} -1 dep_version)
-            if(NOT dep_version MATCHES "^([0-9]+(\\.[0-9]+)?)$")
+            if(NOT dep_version MATCHES "^([0-9]+(\\.[0-9]+)?|auto)$")
                 message(FATAL_ERROR
                     "Invalid module dependency version number. "
-                    "Expected 'VersionMajor', 'VersionMajor.VersionMinor'."
+                    "Expected 'VersionMajor', 'VersionMajor.VersionMinor' or 'auto'."
                 )
             endif()
             set(dep_uri "${dep_module}")
@@ -605,7 +605,6 @@ function(qt5_add_qml_module TARGET)
         target_link_libraries(${QMLPLUGIN_PLUGIN_TARGET} PUBLIC ${TARGET})
 
         set_target_properties(${TARGET} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${QMLPLUGIN_OUTPUT_DIRECTORY}$<0:>"
             AUTOMOC_MOC_OPTIONS "--output-json;--output-dep-file")
     else()
         set_target_properties(${TARGET} PROPERTIES
@@ -776,7 +775,7 @@ function(qt5_add_qml_module TARGET)
             set(__qml_plugin_qmldir_content "")
             list(FIND QMLPLUGIN_DEPEND_MODULE ${depends} fake_version_index)
             list(GET QMLPLUGIN_DEPEND_MODULE_VERSION ${fake_version_index} depend_fake_version)
-            if(depend_fake_version STREQUAL "NOTFOUND")
+            if(depend_fake_version STREQUAL "auto")
                 set(depend_fake_version ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR})
             endif()
             
@@ -816,7 +815,7 @@ function(qt5_add_qml_module TARGET)
     # Add the generated QRC file to the target
     qt5_add_resources(__qml_plugin_qrc_file ${QMLPLUGIN_OUTPUT_DIRECTORY}/${__qml_plugin_uri_name_for_class}.qrc)
     target_sources(${TARGET} PRIVATE ${__qml_plugin_qrc_file})
-    
+
     # Generate QML type info file if needed for shared libraries
     if (__target_type MATCHES "SHARED_LIBRARY" AND NOT QMLPLUGIN_NO_GENERATE_TYPEINFO)
         set(__qmltypes_depend ${QMLPLUGIN_PLUGIN_TARGET})
@@ -828,7 +827,7 @@ function(qt5_add_qml_module TARGET)
         # Generate target-specific QML types file
         add_custom_target(${TARGET}qmltypes ALL
             DEPENDS ${__qmltypes_depend}
-            COMMAND $<$<CONFIG:RELEASE>:${CMAKE_COMMAND}> -E env "QML2_IMPORT_PATH=${__qml_plugin_qml_import_path}" --modify "PATH=path_list_prepend:${QMLPLUGIN_OUTPUT_DIRECTORY}" -- ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
+            COMMAND $<$<CONFIG:RELEASE>:${CMAKE_COMMAND}> -E env "QML2_IMPORT_PATH=${__qml_plugin_qml_import_path}" --modify "PATH=path_list_prepend:$<TARGET_FILE_DIR:${TARGET}>" -- ${QMLPLUGINDUMP_BIN} -nonrelocatable ${QMLPLUGIN_URI} ${QMLPLUGIN_VERSION_MAJOR}.${QMLPLUGIN_VERSION_MINOR} ${CMAKE_CURRENT_BINARY_DIR} -output ${QMLPLUGIN_OUTPUT_DIRECTORY}/${QMLPLUGIN_TYPEINFO}
             COMMAND $<$<NOT:$<CONFIG:RELEASE>>:${CMAKE_COMMAND}> -E echo "Debug build type will not generate ${QMLPLUGIN_TYPEINFO}"
             COMMENT "Generating ${QMLPLUGIN_TYPEINFO}"
             VERBATIM
